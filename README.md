@@ -11,7 +11,7 @@ Tool to deobfuscate asuswrt configs files
 ### Dump
 `./awrtconf.py dump -i Settings_DSL-N55U.CFG -o Settings_DSL-N55U.json`
 
-The dump is in json format, do NOT modify PROFILE value.
+The dump is in json format, do NOT modify the PROFILE value.
 
 ### Pack
 `./awrtconf.py pack -i Settings_DSL-N55U.json -o Settings_DSL-N55U_new.CFG`
@@ -19,7 +19,7 @@ The dump is in json format, do NOT modify PROFILE value.
 ### Pack forcing plaintext
 `./awrtconf.py pack -i Settings_DSL-N55U.json -o Settings_DSL-N55U_plain.CFG -p`
 
-All firmware support the plaintext file for restoring, so you can backup, dump, edit and then pack as plaintext.
+All firmwares support the plaintext file for restoring, so you can backup, dump, edit and then pack as plaintext to avoid algorithm bugs.
 
 ---
 
@@ -71,7 +71,7 @@ else
 ### Algorithm bugs
 ##### Byte overflow
 
-All the bytes with a value less than randkey may be lost.
+All bytes with a value less than randkey may be lost.
 
 ###### Example:
 If the randkey is 18 (0x12) and we have a Line Feed char 0x0A (10) in the nvram:
@@ -98,28 +98,28 @@ if byte < randkey:
 
 ##### Null Byte collision
 
-All the bytes with a value equals to: 
+All bytes with a value equal to: 
 - randkey 
 - randkey + 1
 - randkey + 2
 
 are lost.
 
-This is due to the fact that the algorithm randomly write:
+This is due to the fact that the algorithm randomly writes:
 - 0xFF (255) 
 - 0xFE (254)
 - 0xFD (253)
 
-when there is a **Null Byte (0x00)** to obfuscate and can make a collision with other value based on the randkey.
+when there is a **Null Byte (0x00)** to obfuscate and can generate a collision with other values based on the randkey.
 
 ###### Example:
 If the randkey is 0x09, when the algorithm tries to obfuscate a:
 
 | Char Name | Escape | ASCII hex | Obfuscation |
 | ----------| :----: | :-------: | ----------- |
-| Horizontal Tab| \t | 0x09 | 0xFF + 0x09 - 0x09 -> **0xFF**  (collision with 0x00) |
-| Line Feed     | \n | 0x0A | 0xFF + 0x09 - 0x0A -> **0xFE**  (collision with 0x00) |
-|Vertial Tab    |    | 0x0B | 0xFF + 0x09 - 0x0B -> **0xFD**  (collision with 0x00) |
+| Horizontal Tab| \t | 0x09 | 0xFF + 0x09 - 0x09 -> **0xFF**  (collides with 0x00) |
+| Line Feed     | \n | 0x0A | 0xFF + 0x09 - 0x0A -> **0xFE**  (collides with 0x00) |
+| Vertical Tab  |    | 0x0B | 0xFF + 0x09 - 0x0B -> **0xFD**  (collides with 0x00) |
  
 When the algorithm tries to deobfuscate the CFG file, it **can't distinguish a Null Byte from an Horizontal Tab, Line Feed or Vertial Tab** due to this part of the algorithm:
 ```
@@ -133,6 +133,6 @@ There is no way to completely fix this collision.
 
 I can only advice to remake the backup until you get a randkey less than 5 (0x05) or greater than 13 (0x0D).
 
-The **best value for randkey is 0x00**, because due to collision with 0x00, we only lose 0x01 and 0x02, so **only 2 values instead of 3 are lost**, then they are not printable chars, so they are not often used.
+The **best value for randkey is 0x00**, because due to collision with 0x00, we only lose 0x01 and 0x02, so **only 2 values instead of 3 are lost**, and since they are not printable chars they are not often used.
 
 
