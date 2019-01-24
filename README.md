@@ -135,4 +135,6 @@ I can only advice to remake the backup until you get a randkey less than 5 (0x05
 
 The **best value for randkey is 0x00**, because due to collision with 0x00, we only lose 0x01 and 0x02, so **only 2 values instead of 3 are lost**, and since they are not printable chars they are not often used.
 
-
+---
+## Reference  
+[ASUS Source Code](https://github.com/RMerl/asuswrt-merlin.ng/blob/master/release/src/router/nvram/nvram.c#L546)  
