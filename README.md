@@ -1,140 +1,180 @@
 # Asuswrt-Configs-Deobfuscator
-Tool to deobfuscate asuswrt configs files
+
+Tool to deobfuscate Asuswrt configuration files.
+
+**Based on the project**: [BigNerd95/Asuswrt-Configs-Deobfuscator](https://github.com/BigNerd95/Asuswrt-Configs-Deobfuscator)
 
 ---
 
-## Usage examples
+## Supported Models
+
+- AX86U
+- AC86U
+- Legacy models (N55U, AC55U)
+
+---
+
+## Installation
+
+Clone the repository and ensure you have Python 3 installed.
+
+---
+
+## Usage Examples
+
+### Enable Debug Mode
+
+Use the `--debug` flag to enable detailed logging for debugging purposes. Logs will include additional information about file processing, header parsing, and algorithm behavior.
+
+Example:
+```
+./awrtconf.py --debug decode -i Settings_AX86U.CFG -o Decoded_AX86U.CFG -r 2
+```
+
+Sample output with `--debug`:
+```
+2024-12-01 13:13:48,460 - INFO - Decoding file Settings_AX86U.CFG with Randkey=2
+2024-12-01 13:13:48,460 - DEBUG - Reading file
+2024-12-01 13:13:48,461 - DEBUG - File read successfully, size: 76808 bytes
+2024-12-01 13:13:48,467 - DEBUG - Writing file
+2024-12-01 13:13:48,467 - DEBUG - File written successfully, size: 76800 bytes
+2024-12-01 13:13:48,467 - INFO - Decoded file saved to Decoded_AX86U.CFG
+```
+
+Logs are saved to `asuswrt_deobfuscator.log` in the current directory.
+
+---
+
+## Usage Commands
 
 ### Info
-`./awrtconf.py info -i Settings_DSL-N55U.CFG`
+
+Get configuration file details, including header information and potential issues with the `RandKey`.
+
+```
+./awrtconf.py info -i Settings_AX86U.CFG
+```
 
 ### Dump
-`./awrtconf.py dump -i Settings_DSL-N55U.CFG -o Settings_DSL-N55U.json`
 
-The dump is in json format, do NOT modify the PROFILE value.
+Dump the configuration file into JSON format. **Do NOT modify the `PROFILE` value in the JSON file**.
+
+```
+./awrtconf.py dump -i Settings_AX86U.CFG -o Settings_AX86U.json
+```
 
 ### Pack
-`./awrtconf.py pack -i Settings_DSL-N55U.json -o Settings_DSL-N55U_new.CFG`
 
-### Pack forcing plaintext
-`./awrtconf.py pack -i Settings_DSL-N55U.json -o Settings_DSL-N55U_plain.CFG -p`
+Pack a JSON configuration back into a `.CFG` file.
 
-All firmwares support the plaintext file for restoring, so you can backup, dump, edit and then pack as plaintext to avoid algorithm bugs.
+```
+./awrtconf.py pack -i Settings_AX86U.json -o Settings_AX86U_new.CFG
+```
+
+### Pack with Plaintext
+
+Force packing the JSON configuration into plaintext mode. This avoids potential issues with the obfuscation algorithm.
+
+```
+./awrtconf.py pack -i Settings_AX86U.json -o Settings_AX86U_plain.CFG -p
+```
+
+### Test RandKeys
+
+Test the file with various `RandKey` values to find a readable configuration. This command analyzes the file using a range of recommended keys and outputs the first readable portion for each key.
+
+```
+./awrtconf.py test -i Settings_AX86U.CFG
+```
+
+Sample output:
+```
+2024-12-01 13:09:57,012 - INFO - Testing recommended Randkeys: [0, 1, 2, 3, 4, 14, 15, ...]
+2024-12-01 13:09:57,025 - INFO - Randkey=2: Decoded body: 0:aa2g=0x7...
+2024-12-01 13:09:57,031 - INFO - Randkey=3: Decoded body: 1;bb3h>1y...
+```
+
+Look for a human-readable result (e.g., `RandKey=2` in this case).
+
+### Decode with a Specific RandKey
+
+After identifying the appropriate `RandKey`, use the `decode` command to fully decode the configuration file.
+
+```
+./awrtconf.py decode -i Settings_AX86U.CFG -o Decoded_AX86U.CFG -r 2
+```
+
+Verify the decoded file contents:
+```
+strings Decoded_AX86U.CFG
+```
 
 ---
 
-## Header structure
-The header is 8 bytes long and it's in little endian format
+## Header Structure
 
-###### Plaintext CFG:
+### Plaintext `.CFG`
 
-| Size (byte)  | Type | Name | Comment |
-| :----------: | ---- | ---- | ------- |
-| 4 | Char array  | Profile | Profile name: HDR1 |
-| 4 | Unsigned Int | Body Size | Aligned to next KB (e.g. 31744 (0x00007c00)) |
+| Size (byte) | Type           | Name      | Comment                                    |
+|-------------|----------------|-----------|--------------------------------------------|
+| 4           | Char array     | Profile   | Profile name: HDR1                         |
+| 4           | Unsigned Int   | Body Size | Aligned to the next KB (e.g., 31744 bytes) |
 
-###### Obfuscated CFG:
+### Obfuscated `.CFG`
 
-| Size (byte)  | Type | Profile | Comment |
-| :----------: | ---- | ---- | ------- |
-| 4 | Char array | Profile | Profile name: HDR2 or N55U or AC55U |
-| 3 | Unsigned Int | Body size | Aligned to next KB (e.g. 31744 (0x00007c00)) |
-| 1 | Unsigned Int | Randkey | Random number in interval [0, 29], used to obfuscate the file body |
+| Size (byte) | Type           | Name      | Comment                                    |
+|-------------|----------------|-----------|--------------------------------------------|
+| 4           | Char array     | Profile   | Profile name: HDR2, AX86U, or AC86U        |
+| 3           | Unsigned Int   | Body Size | Aligned to the next KB (e.g., 31744 bytes) |
+| 1           | Unsigned Int   | RandKey   | Random key in the range [0, 29]            |
 
 ---
 
 ## Obfuscation Algorithm
-The body of the config file is the nvram content obfuscated with a weak and bugged algorithm.
 
-### Pseudocode
+The body of the `.CFG` file is obfuscated using a weak and flawed algorithm.
 
-###### Save backup:
-For each byte of the nvram:
+### Save Backup
+
+For each byte of the NVRAM:
 ```
-if byte = 0x00
-	byte <- 0xFD or 0xFE or 0xFF
-else
-	byte <- 0xFF + randkey - byte
+if byte == 0x00:
+byte <- 0xFD or 0xFE or 0xFF
+else:
+byte <- 0xFF + RandKey - byte
 ```
 
-###### Restore backup:
-For each byte of CFG file:
+### Restore Backup
+
+For each byte of the `.CFG` file:
 ```
-if byte = 0xFD or 0xFE or 0xFF
-	byte <- 0x00
-else
-	byte <- 0xFF + randkey - byte;
+if byte == 0xFD or 0xFE or 0xFF:
+byte <- 0x00
+else:
+byte <- 0xFF + RandKey - byte
 ```
 
 ---
 
-### Algorithm bugs
-##### Byte overflow
+## Algorithm Bugs
 
-All bytes with a value less than randkey may be lost.
+### Byte Overflow
 
-###### Example:
-If the randkey is 18 (0x12) and we have a Line Feed char 0x0A (10) in the nvram:
-```
-0xFF + 0x12 - 0x0A -> 0x0107 (byte overflow)
-255  +  18  -  10  ->  263
-```
-Which become 0x07 (7) when written to CFG file as single byte.
+Bytes with values less than the `RandKey` may overflow and be misinterpreted.
 
-If now we try to restore the backup, when the algorithm try to deobfuscate 0x07:
-```
-0xFF + 0x12 - 0x07 -> 0x010A
-255  +  18  -  7   ->  266
-```
-We need to **subtract 0x0100 (256)** to get back 0x0A (10)
+### Null Byte Collision
 
-This is the why in my tool I added this condition:
-```
-if byte < randkey:
-  byte <- 0xFF + randkey - byte - 0x0100
-```
+When a `Null Byte (0x00)` is obfuscated, it is replaced with `0xFD`, `0xFE`, or `0xFF`. This can cause collisions with valid values if the `RandKey` is poorly chosen.
 
--
+### Recommended RandKeys
 
-##### Null Byte collision
-
-All bytes with a value equal to: 
-- randkey 
-- randkey + 1
-- randkey + 2
-
-are lost.
-
-This is due to the fact that the algorithm randomly writes:
-- 0xFF (255) 
-- 0xFE (254)
-- 0xFD (253)
-
-when there is a **Null Byte (0x00)** to obfuscate and can generate a collision with other values based on the randkey.
-
-###### Example:
-If the randkey is 0x09, when the algorithm tries to obfuscate a:
-
-| Char Name | Escape | ASCII hex | Obfuscation |
-| ----------| :----: | :-------: | ----------- |
-| Horizontal Tab| \t | 0x09 | 0xFF + 0x09 - 0x09 -> **0xFF**  (collides with 0x00) |
-| Line Feed     | \n | 0x0A | 0xFF + 0x09 - 0x0A -> **0xFE**  (collides with 0x00) |
-| Vertical Tab  |    | 0x0B | 0xFF + 0x09 - 0x0B -> **0xFD**  (collides with 0x00) |
- 
-When the algorithm tries to deobfuscate the CFG file, it **can't distinguish a Null Byte from an Horizontal Tab, Line Feed or Vertial Tab** due to this part of the algorithm:
-```
-if byte = 0xFD or 0xFE or 0xFF
-	byte = 0x00
-...
-```
-So we have lost 3 bytes.
-
-There is no way to completely fix this collision.
-
-I can only advice to remake the backup until you get a randkey less than 5 (0x05) or greater than 13 (0x0D).
-
-The **best value for randkey is 0x00**, because due to collision with 0x00, we only lose 0x01 and 0x02, so **only 2 values instead of 3 are lost**, and since they are not printable chars they are not often used.
+To minimize data loss:
+- Use a `RandKey` in the range `[0, 4]` or `[14, 29]`.
+- The best `RandKey` is `0`, as it only loses two non-printable characters (`0x01` and `0x02`).
 
 ---
-## Reference  
-[ASUS Source Code](https://github.com/RMerl/asuswrt-merlin.ng/blob/master/release/src/router/nvram/nvram.c#L546)  
+
+## Reference
+
+- Original Project: [BigNerd95/Asuswrt-Configs-Deobfuscator](https://github.com/BigNerd95/Asuswrt-Configs-Deobfuscator)
+- ASUS Source Code: [ASUS nvram.c](https://github.com/RMerl/asuswrt-merlin.ng/blob/master/release/src/router/nvram/nvram.c#L546)
